@@ -1,0 +1,26 @@
+Distinct;perp_race;n;count
+Bronx;Asian;479;54326
+Bronx;BLACK;14905;418455
+Bronx;Hispanic;14881;823695
+Bronx;Nonwhite;74;1336118
+Bronx;WHITE;1036;132144
+Brooklyn;Asian;2226;612635
+Brooklyn;BLACK;22337;402041
+Brooklyn;Hispanic;9969;667676
+Brooklyn;Nonwhite;93;1804400
+Brooklyn;WHITE;5177;588704
+Manhattan;Asian;1259;317346
+Manhattan;BLACK;16167;775735
+Manhattan;Hispanic;11414;509924
+Manhattan;Nonwhite;108;1716924
+Manhattan;WHITE;3798;995436
+Queens;Asian;3975;196957
+Queens;BLACK;10640;201964
+Queens;Hispanic;11105;427297
+Queens;Nonwhite;161;889645
+Queens;WHITE;2505;779482
+Staten Island;Asian;261;51292
+Staten Island;BLACK;2527;44881
+Staten Island;Hispanic;1512;90748
+Staten Island;Nonwhite;37;199250
+Staten Island;WHITE;1708;293944

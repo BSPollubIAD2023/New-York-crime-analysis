@@ -1,0 +1,1266 @@
+---
+title: "Analiza przestępczości"
+author: 'Stola Barłomiej'
+date: "2025-10-16"
+output: html_document
+---
+
+```{r setup, include=TRUE, warning=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE, include=FALSE}
+library(dplyr)
+library(tidyverse)
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+#felony najpowazniejsze
+#misdemeanor srednie
+#violation najlżejsze
+```
+
+# Analiza przestępczości NYC na podstawie danych o aresztowaniach NYCPD
+
+**Dane:**
+
+-   Data
+
+-   Rodzaj przestępstwa
+
+-   Poziom wykroczenia
+
+-   Dzielnica
+
+-   Sposób aresztowania
+
+-   Cechy demograficzne sprawców (grupa wiekowa, płeć, rasa)
+
+**Problem badawczy:** Czy można wyróżnić grupy przestępstw które będą różniły się między sobą powyższymi cechami i cechami sprawców?
+
+**Hipotezy:**
+
+-   H1: Istnieją powiązania pomiędzy typem przestępstwa a sposobem aresztowania
+
+-   H2: Typy przestępstw można wyprofilować ze względu na podobieństwa dotyczące okoliczności i cech sprawcy (np. Kradzieże są charakterystyczne dla dzielnicy X dla okresu Y i sposób aresztowania Z, typowy sprawca xyz)
+
+-   H3: Struktura przestępstw różni się w zależności od dzielnicy
+
+```{r echo=FALSE, include=FALSE}
+dane <- read.csv2("dane.csv",sep = ",")
+dane <- dane[,-c(3,4,5,7,10,15)]
+dane <- dane[,-c(13,12,11,10)]
+dane <- dane|>
+  mutate(
+    Distinct=case_when(
+      arrest_boro=="S"~"Staten Island",
+      arrest_boro=="M"~"Manhattan",
+      arrest_boro=="B"~"Bronx",
+      arrest_boro=="Q"~"Queens",
+      arrest_boro=="K"~"Brooklyn"
+    )
+  )
+ dane <-  dane[,-5]
+ dane <- dane|>
+   mutate(
+     Arrest_manner=case_when(
+       jurisdiction_code==0~"Patrol",
+       jurisdiction_code==1~"Transit",
+       jurisdiction_code==2~"Housing"
+     )
+   )
+ dane <- dane|>
+   mutate(a_date=as.Date(arrest_date))
+ dane <- dane[,-2]
+ dane <- dane|>
+   select(arrest_key,a_date,Arrest_manner,everything())
+ dane <- dane[,-6]
+ dane$Arrest_manner <- factor(dane$Arrest_manner,
+                              levels = c("Patrol","Transit","Housing", ordered=TRUE))
+ dane$law_cat_cd <- factor(dane$law_cat_cd,
+                           levels=c("V","M","F"), ordered=TRUE)
+ dane$perp_sex <- factor(dane$perp_sex,
+                            levels=c("M","F"))
+ag<- unique(dane$age_group)
+dane$age_group <- factor(dane$age_group,
+                         levels=ag, ordered = TRUE)
+dane$perp_race <- factor(dane$perp_race,
+                         levels=unique(dane$perp_race))
+na.omit(dane)
+rownames <- NULL
+dane <- dane|>
+  filter(perp_race!="UNKNOWN" & perp_race!="UNKNOWN")
+dane <- na.omit(dane)
+rownames <- NULL
+
+
+ 
+
+
+
+
+```
+
+```{r echo=FALSE, include=FALSE}
+liczebnosc <- read.csv2("liczebnosc.csv", sep = ",")
+colnames(liczebnosc) <- c("TimePeriod","GeoTypeDesc","GeoID","GeoRank","BoroID","Borought","Geography","Area","Totalp","Asian","Black", "Hispanic","White","Nonwhite")
+liczebnosc <- liczebnosc[-1,-c(1,2,3,4,5,7,8)]
+rownames(liczebnosc) <- NULL
+liczebnosc
+dane <- dane |>
+  mutate(
+    perp_race = if_else(
+      perp_race %in% c("AMERICAN INDIAN/ALASKAN NATIVE"),
+      "Nonwhite",
+      perp_race   
+    )
+  )
+dane <- dane |>
+  mutate(
+    perp_race = if_else(
+      perp_race %in% c("ASIAN / PACIFIC ISLANDER"),
+      "Asian",
+      perp_race   
+    )
+  )
+dane <- dane |>
+  mutate(
+    perp_race = if_else(
+      perp_race %in% c("BLACK HISPANIC","WHITE HISPANIC"),
+      "Hispanic",
+      perp_race   
+    )
+  )
+
+dane_split <- dane |>
+  group_by(Distinct, perp_race) |>
+  summarise(n = n(), .groups = "drop") |>
+  group_by(Distinct)|>
+  mutate(n1=sum(n))|>
+  ungroup()|>
+  mutate("%"=round(n/n1,4))|>
+  group_split(Distinct)
+#as.character(unique(dane$perp_race))
+#unique(dane$perp_race)
+#dane_split[[1]]|>
+ # mutate(count=liczebnosc[[1,2]]*liczebnosc[[1,3]]/100)
+convert_totalp <- function(x) {
+  as.numeric(gsub(",", "", x))  # usuń przecinki, potem konwersja na numeric
+}
+
+
+liczebnosc$Borought <- as.character(liczebnosc$Borought)  
+liczebnosc$Totalp   <- convert_totalp(liczebnosc$Totalp)  
+
+liczebnosc[, 3:7] <- lapply(liczebnosc[, 3:7], as.numeric)
+
+
+#for( i in 1:5){
+ #   for(j in 3:7){
+  #  dane_split[[i]] <- dane_split[[i]]|>
+   # mutate(n2=liczebnosc[i,2]*liczebnosc[i, j])
+#}
+#}
+
+
+```
+
+```{r echo=FALSE, include=FALSE}
+str(liczebnosc)
+str(dane_split)
+sapply(liczebnosc, class)
+
+```
+
+```{r echo=FALSE, include= FALSE}
+#library(dplyr)
+
+#races <- c("Asian","Black","Hispanic","White","Nonwhite")
+
+
+#liczebnosc$Totalp <- as.numeric(liczebnosc$Totalp)
+#for (r in races) {
+#  liczebnosc[[r]] <- as.numeric(liczebnosc[[r]])
+#}
+
+
+#dane_split_new <- Map(function(df, idx) {
+#  total <- liczebnosc$Totalp[idx]
+#  vals <- round(as.numeric(liczebnosc[idx, races]) / 100 * total,0)
+  
+ 
+#  counts_df <- as.data.frame(matrix(rep(vals, each = nrow(df)), nrow = nrow(df)))
+#  names(counts_df) <- paste0(races, "_count")
+ 
+#  bind_cols(df, counts_df)
+#}, dane_split, seq_along(dane_split))
+
+
+
+
+#counts <- c("Asian_count","Black_count","Hispanic_count","White_count","Nonwhite_count")
+
+#library(dplyr)
+#library(stringr)
+
+#df[[1]] <- dane_split_new[[1]]  
+#df[[2]] <- dane_split_new[[2]] 
+#df[[3]] <- dane_split_new[[3]] 
+#df[[4]] <- dane_split_new[[4]] 
+#df[[5]] <- dane_split_new[[5]] 
+
+#for(i in 1:5){
+#df[[i]] <- df[[i]] %>% mutate(perp_race_norm = str_to_lower(str_trim(perp_race)))
+#df[[i]] <- df[[i]] %>%
+ # mutate(perp_race_norm = str_to_lower(str_trim(perp_race))) %>%
+  #mutate(count = case_when(
+   # str_detect(perp_race_norm, "nonwhite")        ~ Nonwhite_count,
+    #str_detect(perp_race_norm, "\\bblack\\b")     ~ Black_count,
+    #str_detect(perp_race_norm, "\\basian\\b")     ~ Asian_count,
+    #str_detect(perp_race_norm, "hispanic")        ~ Hispanic_count,
+    #str_detect(perp_race_norm, "\\bwhite\\b")     ~ White_count,
+    #TRUE ~ NA_real_
+  #)) %>%
+  #select(-perp_race_norm)
+#}
+#df[[1]]
+
+
+#library(dplyr)
+#library(stringr)
+
+#unique_vals <- dane_split_new[[1]]$perp_race %>% 
+ # str_to_lower() %>% str_trim() %>% unique()
+#print(unique_vals)
+
+```
+
+```{r echo=FALSE, eval=FALSE, include=FALSE}
+
+
+
+
+
+attach_count_by_race <- function(df) {
+
+  counts_long <- df %>%
+    slice(1) %>%
+    select(ends_with("_count")) %>%
+    pivot_longer(cols = everything(), names_to = "race", values_to = "count") %>%
+    mutate(race = str_remove(race, "_count") %>% str_to_lower())
+  
+
+  if (!"perp_race_norm" %in% names(df)) {
+    df <- df %>% mutate(perp_race_norm = str_to_lower(str_trim(perp_race)))
+  } else {
+    df <- df %>% mutate(perp_race_norm = str_to_lower(str_trim(perp_race_norm)))
+  }
+  
+
+  df2 <- df %>%
+    left_join(counts_long, by = c("perp_race_norm" = "race"))
+  
+
+  df2 <- df2 %>% select(-ends_with("_count"))
+  
+  return(df2)
+}
+
+
+dane_split_new <- lapply(dane_split_new, attach_count_by_race)
+
+
+summary_table <- bind_rows(lapply(seq_along(dane_split_new), function(i) {
+  dane_split_new[[i]] %>%
+    count(perp_race, perp_race_norm, is_na_count = is.na(count)) %>%
+    mutate(boro_idx = i)
+}))
+print(summary_table)
+
+
+print(head(dane_split_new[[2]]))
+for(i in 1:5){
+write_delim(dane_split_new[[i]], paste("dane_split_new",i,".csv"), delim = ";")
+}
+
+```
+
+```{r echo=FALSE, eval=FALSE, include= FALSE}
+dane_split_new[[1]] <- read.csv("dane_split_new 1 .csv", sep = ";")
+dane_split_new[[2]] <- read.csv("dane_split_new 2 .csv", sep = ";")
+dane_split_new[[3]] <- read.csv("dane_split_new 3 .csv", sep = ";")
+dane_split_new[[4]] <- read.csv("dane_split_new 4 .csv", sep = ";")
+dane_split_new[[5]] <- read.csv("dane_split_new 5 .csv", sep = ";")
+
+```
+
+```{r echo=FALSE, eval=FALSE, include= FALSE}
+#!!!!!
+dane_split_new_new <- list()
+for (i in 1:5){
+dane_split_new_new[[i]] <- dane_split_new[[i]]|>
+  mutate('%%'= n/count*100,
+         '%ofpop'=count/sum(count)*100,)
+}
+for (i in 1:5){
+dane_split_new_new[[i]] <- dane_split_new_new[[i]]|>
+  mutate('indeks'=(dane_split_new_new[[i]]$X.*100)/dane_split_new_new[[i]]$`%ofpop`)
+}
+dane_split_new_new
+```
+
+```{r echo=FALSE, eval=FALSE, include=FALSE}
+for(i in 1:5){
+write_delim(dane_split_new_new[[i]], paste("dane_split_new_new",i,".csv"), delim = ";")
+}
+```
+
+```{r echo=FALSE, eval=FALSE, include=FALSE}
+dane_split_new_new
+```
+
+------------------------------------------------------------------------
+
+```{r echo=FALSE, eval=FALSE, include=FALSE}
+options(scipen = 999)
+srednia=numeric(5)
+for (i in 1:5){
+  for (j in 1:5)
+  {
+    srednia[i]=dane_split_new_new[[j]][i,10] +srednia[i]
+    print(srednia[i])
+  }
+}
+srednia<- 0.2*srednia
+srednia
+
+
+v=numeric(5)
+for (i in 1:5){
+  for (j in 1:5)
+  {
+    v[i]=(dane_split_new_new[[j]][i,10] - srednia[i])^2 +v[i]
+    print(v[i])
+  }
+}
+wariancja<- v/5
+
+tabl_indeks <- data.frame(dane_split_new_new[[1]]$perp_race, srednia, wariancja)
+colnames(tabl_indeks) <- c("Rasa", "srednia","wariancja")
+write_delim(tabl_indeks,"tabl_indeks.csv", delim = ";")
+
+```
+
+```{r echo=FALSE, eval=FALSE, include=FALSE}
+dane_all <- list()
+for (i in 1:5)
+dane_all[[i]] <- dane_split_new_new[[i]]|>
+  pivot_wider(names_from = perp_race, values_from = n)
+dane_all
+```
+
+```{r echo=FALSE, eval=FALSE, include=FALSE}
+
+
+dane_all2 <- map2_df(
+  dane_split_new_new,
+  1:5,
+  ~ mutate(.x, Distinct = Distinct)
+)
+dane_all2 <- dane_all2|>
+  select(Distinct, perp_race, n, count)
+#write_delim(dane_all2,"dane_all2.csv", delim=";")
+```
+
+```{r echo=FALSE, eval=FALSE}
+
+
+dane_long <- dane_all2 |>
+  pivot_longer(
+    cols = c(count, n),
+    names_to = "typ",
+    values_to = "wartosc"
+  )
+
+#ggplot(dane_long, aes(x = perp_race, y = wartosc, fill = typ)) +
+ # geom_col(position = "dodge") +
+  #theme_minimal()
+
+```
+
+**EDA - wstępna analiza danych populacyjnych**
+
+Na wstępie przeanalizuję dane populacyjne zawierające informacje odnośnie populacji i liczby przestępców dla każdej rasy (Osoby białe, czarnoskóre, pochodzenia azjatyckiego, pochodzenia latynoskiego i określone przeze mnie jako "Nonwhite" osoby mieszane lub pochodzenia hinduskiego), dla każdej z dzielnic (Bronx, Brooklyn, Manhattan, Queens, Staten Island).
+
+Pierwszy wykres przedstawia stosunek zaaresztowanych (osobno dla każdej rasy) do populacji danej rasy, osobno dla dzielnic.
+
+```{r echo=FALSE}
+library(ggplot2)
+dane_long <- read.csv("dane_long.csv")
+
+wynik <- dane_long |>
+  pivot_wider(
+    id_cols = c(Distinct, perp_race),
+    names_from = typ,
+    values_from = wartosc
+  )|>
+  mutate(wartosc = n/count) |>
+  select(Distinct, perp_race, wartosc)
+
+wykres1 <- ggplot(wynik, aes(x = perp_race, y = wartosc, fill = perp_race)) +
+  geom_col(width = 0.8) +
+  geom_text(
+    aes(label = round((wartosc+0.1),2 )),
+    vjust = -0.4,
+    size = 3
+  ) +
+  facet_wrap(~ Distinct, nrow = 1) +
+  labs(
+    x = "Rasa",
+    y = "Stosunek zaaresztowanych do liczebności rasy",
+    fill = "Dzielnica"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold")
+  )
+
+
+ggsave("wykres1.jpg",plot = wykres1)
+
+knitr::include_graphics("wykres1.jpg")
+```
+
+Poniższy wykres przedstawia liczbę przestępców na 1000 mieszkańców w każdej dzielnicy.
+
+```{r echo=FALSE}
+#ogolna przestępczość w każdej dzielnicy
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+#dane_plot <- dane_all2 %>%
+ # group_by(Distinct) %>%
+  #summarise(
+   # populacja = sum(count, na.rm = TRUE),
+    #przestepstwa = sum(n, na.rm = TRUE)
+  #) %>%
+  #pivot_longer(cols = c(przestepstwa ,populacja),
+   #            names_to = "typ",
+    #       values_to = "wartosc")
+dane_all2 <- read.csv("dane_all2.csv")
+
+#dane_plot <- dane_all2|>
+ # group_by(Distinct)|>
+  #mutate(
+  #populacja = sum(count),
+  #przestepstwa=sum(n),
+  #stosunek= przestepstwa/(populacja/1000))
+
+
+dane_plot <- read.csv2("dane_plot.csv", sep=";")
+#wykres2<- ggplot(dane_plot, aes(x = Distinct, y = wartosc, fill = typ)) +
+#  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+ # labs(x = "Dzielnica", y = "Liczba", fill = "") +
+#  scale_fill_manual(values = c("przestepstwa" = "tomato", "populacja" = "steelblue")) +
+ # theme_minimal() +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+wykres2 <- ggplot(dane_plot, aes(x = Distinct, y = stosunek, fill = Distinct)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_text(aes(label = stosunek), 
+            position = position_dodge(width = 0.8), 
+            vjust = -0.5, size = 3) +  
+  labs(x = "Dzielnica", y = "Liczba przestępsców na 1000", fill = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#ggsave("wykres2.jpg", wykres2)
+knitr::include_graphics("wykres2.jpg")
+```
+
+```{r echo=FALSE, eval=FALSE}
+#tabl_indeks
+```
+
+Na poniższych wykresach słupki przedstawiają indeks reprezentacji dla każdej rasy w każdej dzielnicy, gruba przerywana linia reprezentuje średni indeks dla danej rasy, cienka przerywana odchylenie standardowe.
+
+Wyjaśniając czym jest indeks reprezentacji, jest to stosunek udziału danej rasy w przestępstwach do udziału danej rasy w populacji. Indeks równy jeden oznacza przeciętną reprezentację, gdzie wyższe liczby sugerują nadwyżkę.
+
+```{r echo=FALSE}
+#d_all <- dane_split_new_new |> 
+ # imap(~ mutate(.x, Distinct = Distinct)) |> 
+#  bind_rows()
+tabl_indeks <- read.csv("tabl_indeks.csv")
+#table_lines <- tabl_indeks %>%
+#    mutate(sd = sqrt(wariancja),
+#           ymin = srednia - sd,
+#           ymax = srednia + sd)|>
+#    crossing(Distinct = unique(d_all$Distinct))
+pal_fill <- c("Asian" = "yellow", "BLACK" = "black", "Hispanic" = "brown",
+              "Nonwhite" = "green", "WHITE" = "blue")
+
+table_lines <- read.csv("table_lines.csv")
+table_line_A<- table_lines|>
+  filter(Rasa=="Asian")
+d_all <- read.csv("d_all.csv", sep = ";")
+d_all <- d_all %>%
+  mutate(indeks = as.numeric(gsub(",", ".", indeks)))
+#gg_A <- d_all %>%
+ # ggplot(aes(x = perp_race, y = indeks, fill = perp_race)) +
+  #geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  #geom_text(aes(label = round(indeks, 2)),
+            #position = position_dodge(width = 0.8),
+           # vjust = -0.5, size = 3) +
+  #facet_wrap(~ Distinct, nrow = 1) +
+  #labs(x = "Rasa", y = "Liczba", fill = "") +
+  #theme_minimal() +
+  #theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+ 
+  #geom_hline(data = table_line_A,
+             #aes(yintercept = srednia, color = Rasa),
+             #linetype = "dashed", size = 0.7, inherit.aes = FALSE) +
+  #geom_hline(data = table_line_A,
+             #aes(yintercept = ymin, color = Rasa),
+             #linetype = "dotted", size = 0.5, inherit.aes = FALSE) +
+  #geom_hline(data = table_line_A,
+   #          aes(yintercept = ymax, color = Rasa),
+            # linetype = "dotted", size = 0.5, inherit.aes = FALSE) +
+  #scale_fill_manual(values = pal_fill) +
+ # scale_color_manual(values = pal_fill)
+
+
+#ggsave("Wykres_indeks_sd.jpg",gg_A)
+knitr::include_graphics("Wykres_indeks_sd.jpg")
+
+```
+
+```{r echo=FALSE}
+table_line_B <- table_lines |> 
+  filter(Rasa == "BLACK")
+gg_B <- d_all %>%
+  ggplot(aes(x = perp_race, y = indeks, fill = perp_race)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_text(aes(label = round(indeks,2)),
+            position = position_dodge(width = 0.8),
+            vjust = -0.5, size = 3) +
+  facet_wrap(~ Distinct, nrow = 1) +
+  labs(x = "Rasa", y = "Liczba", fill = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_hline(data = table_line_B,
+             aes(yintercept = srednia, color = Rasa),
+             linetype = "dashed", size = 0.7, inherit.aes = FALSE) +
+  geom_hline(data = table_line_B,
+             aes(yintercept = ymin, color = Rasa),
+             linetype = "dotted", size = 0.5, inherit.aes = FALSE) +
+  geom_hline(data = table_line_B,
+             aes(yintercept = ymax, color = Rasa),
+             linetype = "dotted", size = 0.5, inherit.aes = FALSE) +
+  scale_fill_manual(values = pal_fill) +
+  scale_color_manual(values = pal_fill)
+#ggsave("gg_B.jpg",gg_B)
+knitr::include_graphics("gg_B.jpg")
+```
+
+```{r echo=FALSE}
+table_line_W <- table_lines |> 
+  filter(Rasa == "WHITE")
+
+gg_W <- d_all %>%
+  ggplot(aes(x = perp_race, y = indeks, fill = perp_race)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_text(aes(label = round(indeks, 2)),
+            position = position_dodge(width = 0.8),
+            vjust = -0.5, size = 3) +
+  facet_wrap(~ Distinct, nrow = 1) +
+  labs(x = "Rasa", y = "Liczba", fill = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_hline(data = table_line_W,
+             aes(yintercept = srednia, color = Rasa),
+             linetype = "dashed", size = 0.7, inherit.aes = FALSE) +
+  geom_hline(data = table_line_W,
+             aes(yintercept = ymin, color = Rasa),
+             linetype = "dotted", size = 0.5, inherit.aes = FALSE) +
+  geom_hline(data = table_line_W,
+             aes(yintercept = ymax, color = Rasa),
+             linetype = "dotted", size = 0.5, inherit.aes = FALSE) +
+  scale_fill_manual(values = pal_fill) +
+  scale_color_manual(values = pal_fill)
+
+#ggsave("gg_W.jpg",gg_W)
+knitr::include_graphics("gg_W.jpg")
+```
+
+```{r echo=FALSE}
+table_line_H <- table_lines |> 
+  filter(Rasa == "Hispanic")
+
+gg_H <- d_all %>%
+  ggplot(aes(x = perp_race, y = indeks, fill = perp_race)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_text(aes(label = round(indeks, 2)),
+            position = position_dodge(width = 0.8),
+            vjust = -0.5, size = 3) +
+  facet_wrap(~ Distinct, nrow = 1) +
+  labs(x = "Rasa", y = "Liczba", fill = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_hline(data = table_line_H,
+             aes(yintercept = srednia, color = Rasa),
+             linetype = "dashed", size = 0.7, inherit.aes = FALSE) +
+  geom_hline(data = table_line_H,
+             aes(yintercept = ymin, color = Rasa),
+             linetype = "dotted", size = 0.5, inherit.aes = FALSE) +
+  geom_hline(data = table_line_H,
+             aes(yintercept = ymax, color = Rasa),
+             linetype = "dotted", size = 0.5, inherit.aes = FALSE) +
+  scale_fill_manual(values = pal_fill) +
+  scale_color_manual(values = pal_fill)
+#ggsave("gg_H.jpg",gg_H)
+knitr::include_graphics("gg_H.jpg")
+```
+
+```{r echo=FALSE}
+d_all|>
+  write.csv2("d_all.csv",sep = ";")
+```
+
+```{r echo=FALSE}
+#d_all %>%
+ # group_by(perp_race) %>%
+  #summarise(
+   # cor = cor.test(`%ofpop`, indeks)$estimate,
+    #p_value = cor.test(`%ofpop`, indeks)$p.value,
+    #ci_low = cor.test(`%ofpop`, indeks)$conf.int[1],
+    #ci_high = cor.test(`%ofpop`, indeks)$conf.int[2],
+    #.groups = "drop"
+  #)
+
+```
+
+**Czy index reprezentacji jest podobny dla kazdej rasy? Analiza wariancji.**
+
+Na pierwszy rzut oka wartości indeksów rzeczywiście się mocno różnią ale zastosuję analizę wariancji aby uwzględnić ich rozkład i istotność statystyczną.
+
+Założenia:
+
+1.  Niezależność obserwacji - Spełnione, rasy i dzielnice są wyodrębnione
+
+2.  Normalność reszt - Spełnione na przyjętym poziomie istotności 0.01 brak podstaw do odrzucenia hipotezy o normalności reszt.
+
+```{r echo=TRUE}
+anova1 <- aov(indeks ~ perp_race, data = d_all)
+shapiro.test(anova1$residuals)
+
+
+```
+
+3.  Homogenicznosc wariancji - dla przyjętego poziomu istotności odrzucam hipotezę zerową więc brak jednorodności.
+
+    Zastosuję wariant Anovy Bernarda Welcha który jest odporny na brak homogeniczności wariancji.
+
+    ```{r echo=TRUE}
+    library(rstatix)
+    levene_test(d_all, indeks~perp_race)
+
+    oneway.test(indeks ~ perp_race,data = d_all, var.equal = FALSE)
+
+    ```
+
+Na poziomie istotności 0.01 odrzucam hipotezę zerową, średnie indeksy reprezentacji różnią się od siebie.
+
+Aby dowiedzieć się więcej o różnicach pomiędzy indeksami reprezentacji wykonam test Gamesa-Howella.
+
+```{r echo=TRUE}
+library(rstatix)
+library(dplyr)
+library(ggplot2)
+#Post-hoc
+post_hoc<- games_howell_test(d_all, indeks~perp_race, detailed = FALSE)|>
+  filter(p.adj.signif!="ns")
+kolory <- c("black", "black", "black", "brown","brown","blue")
+post_hoc <- post_hoc|>
+  mutate(
+ axis_group = ifelse(estimate > 0, group1, group2),
+    bar_value  = abs(estimate),
+ bar_group = ifelse(estimate < 0, group1, group2),
+  kolor=kolory)
+post_hoc
+
+post_hoc_plot <- ggplot(post_hoc, aes(x = axis_group, y = bar_value, fill=bar_group)) +
+  geom_col(position = position_dodge(width = 0.8),width=0.7) +
+  geom_text(aes(label = round(bar_value, 3)), 
+            vjust = -0.5, size = 4) +
+  labs(
+    x = "Rasa o niższym indeksie",
+    y = "Nadwyżka",
+    fill = "Rasa o wyższym indeksie"
+  ) +
+  theme_minimal()
+ggsave("post_hoc_plot.jpg", post_hoc_plot)
+
+
+post_hoc_plot
+```
+
+**Czy istnieją istotne różnice w indeksach pomiędzy rasami i czy te różnice zależą od dzielnicy? Permutacyjna Anova z interakcją**
+
+```{r echo=TRUE}
+library(lmPerm)
+
+model_perm <- aovp(
+  indeks ~ perp_race * Distinct,
+  data = d_all,
+  perm = "Prob"
+)
+
+summary(model_perm)
+```
+
+**Wnioski**
+
+Na poziomie istotności α = 0.01 odrzucono hipotezę o równości średnich indeksów dysproporcji pomiędzy rasami. Średnie wartości indeksu istotnie różnią się w zależności od rasy, przy czym efekt ten jest najsilniejszy spośród analizowanych czynników, co potwierdza największa wartość sumy kwadratów.
+
+Stwierdzono również istotne statystycznie różnice średnich indeksów pomiędzy dzielnicami, jednak siła tego efektu jest wyraźnie słabsza niż w przypadku różnic pomiędzy rasami.
+
+Dodatkowo wykazano istotną interakcję pomiędzy rasą a dzielnicą, co oznacza, że struktura indeksów dysproporcji rasowej nie jest jednorodna we wszystkich dzielnicach. Wzorce nad- i niedoreprezentacji rasowej różnią się w zależności od borough, co wskazuje na przestrzenne zróżnicowanie nierówności.
+
+```{r echo=FALSE}
+zbiór <- dane|>
+  mutate(
+    month = month(a_date),
+    season = case_when(
+      month %in% c(12, 1, 2)  ~ "Winter",
+      month %in% c(3, 4, 5)   ~ "Spring",
+      month %in% c(6, 7, 8)   ~ "Summer",
+      month %in% c(9, 10, 11) ~ "Autumn"
+    ),
+    season = factor(season,
+                    levels = c("Winter", "Spring", "Summer"))
+  )
+
+write.csv2(zbiór, "zbiór.csv")
+```
+
+**Hipotezy**
+
+H1: Istnieją powiązania pomiędzy typem przestępstwa a sposobem aresztowania.
+
+Aby zbadać powyższą hipotezę wykonam zliczę przypadki różnych sposóbów aresztowania dla przestępstw.
+
+```{r echo=FALSE, include=FALSE}
+zbiór|>
+  filter(ofns_desc=="null")
+zbiór$ofns_desc[zbiór$ofns_desc == "(null)"] <- NA
+na.omit(zbiór)
+macierz<- as.matrix(base::table(zbiór$ofns_desc, zbiór$Arrest_manner))
+macierz <- macierz[,-4]
+zbiór$ofns_desc[zbiór$Arrest_manner == "(TRUE)"] <- NA
+write.csv2(macierz, "macierz.csv")
+```
+
+```{r}
+macierz
+```
+
+Dla powstałej macierzy wykonuję test niezależności chi.
+
+```{r echo=TRUE}
+chisq.test(macierz)
+```
+
+**Wnioski:**
+
+Na poziomie istotności 0.01 odrzucamy hipotezę zerową o niezależności sposobu zaaresztowania z kategorią przestępstwa.
+
+Aby zbadać siłę zależności wykonuję test Haralda Cramera.
+
+```{r echo=TRUE}
+library(rstatix)
+cramer_v(macierz)
+
+```
+
+Test wskazuje na silną zależność pomiędzy sposobem zaaresztowania a typem przestępstwa.
+
+Poniżej obliczono **standaryzowane reszty (standardized residuals)**. Standaryzowane reszty informują o tym, jak bardzo obserwowana liczba przypadków w danej komórce tabeli różni się od liczby oczekiwanej przy założeniu niezależności, uwzględniając wariancję. Wartości dodatnie wskazują na komórki z większą liczbą obserwacji niż oczekiwano, a wartości ujemne na komórki z mniejszą liczbą obserwacji.
+
+W analizie przyjęto, że reszty o wartości bezwzględnej większej niż 2 wskazują na istotne odchylenie od oczekiwanej liczby przypadków, co pozwala na zlokalizowanie konkretnych grup (np. kombinacji rasy i dzielnicy), które najbardziej wpływają na wynik testu chi-kwadrat.
+
+```{r echo=TRUE}
+res <- chisq.test(macierz)$stdres
+res
+
+```
+
+Poniższa mapa ciepła przedstawia odchylenia od oczekiwanych wartości, im cieplejszy kolor tym większe dodatnie odchylenie, kolor biały oznacza brak odchylenia.
+
+```{r echo=FALSE, include=FALSE}
+library(tidyverse)
+str(res)
+res_df <- as.data.frame(as.table(res)) |>
+  rename(
+    offense = Var1,
+    arrest_manner = Var2,
+    residual = Freq
+  ) |>
+  filter(abs(residual) >= 2)
+
+heatmapa<- ggplot(res_df, aes(
+  x = arrest_manner,
+  y = fct_reorder(offense, residual),
+  fill = residual
+)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(
+    low  = "#08306b",  
+    mid  = "white",
+    high = "#d7301f",  
+    midpoint = 0,
+    name = "Stand.\nreszty"
+  ) +
+  labs(
+    title = "Nad- i niedoreprezentacja przestępstw\nwzględem sposobu aresztowania",
+    x = "Sposób aresztowania",
+    y = "Rodzaj przestępstwa"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank()
+  )
+ggsave("heatmapah1.jpg", heatmapa)
+
+
+```
+
+```{r, fig.width = 10, fig.height = 14}
+heatmapa
+```
+
+**H2:** Typy przestępstw można wyprofilować ze względu na podobieństwa dotyczące okoliczności i cech sprawców (np. kradzieże są typowe dla młodszych sprawców w określonych dzielnicach i porach roku).
+
+Aby zbadać powyższą hipotezę zmodyfikowano pierwotny wzór danych aby zawierał średnie liczby przypadków dla każdej zmiennej osobno dla każdego przestępstwa.
+
+Wyjaśniając jeśli dane przestępstwo zostało popełnione 500 razy a 400 ze sprawców to mężczyźni to średnia dla mężczyzn wynosi 0.8 i tak dla każdej innej zmiennej w tym zmiennych dotyczących czasu popełnienia przestępstwa.
+
+Przestępstwa o zbyt ogólnym opisie zostały usunięte, a utworzone dane znormalizowano (średnia równa 0, odchylenie standardowe równe 1).
+
+```{r echo=TRUE, include=TRUE}
+
+zbiór <- zbiór|>
+  group_by(ofns_desc)|>
+  filter(n()>=200)|>
+  filter(ofns_desc!="OTHER STATE LAWS" & ofns_desc!="MISCELLANEOUS PENAL LAW" & ofns_desc!=  "OFFENSES AGAINST THE PERSON" & ofns_desc!= "ASSAULT 3 & RELATED OFFENSES" & ofns_desc!= "OTHER STATE LAWS (NON PENAL LAW)")|>
+  ungroup()
+profiles <- zbiór%>%
+  group_by(ofns_desc) %>%
+  summarise(
+    # rasa
+    p_white   = mean(perp_race == "WHITE"),
+    p_black   = mean(perp_race == "BLACK"),
+    p_hisp    = mean(perp_race == "Hispanic"),
+    p_asian = mean(perp_race=="Asian"),
+    p_nonwhite = mean(perp_race=="Nonwhite"),
+    
+    # płeć
+    p_male    = mean(perp_sex == "M"),
+    p_female = mean(perp_sex =="F"),
+    
+    # wiek
+    p_young   = mean(age_group == "<18" | age_group == "18-24"),
+    p_average = mean(age_group =="25-44"),
+    p_old = mean(age_group =="45-64"),
+    p_v_old =mean(age_group =="65+"),
+    
+    # borough
+    p_bronx   = mean(Distinct == "Bronx"),
+    p_manh    = mean(Distinct == "Manhattan"),
+    p_brook   = mean(Distinct == "Brooklyn"),
+    p_q = mean(Distinct =="Queens"),
+    p_si = mean(Distinct =="Staten Island"),
+    
+    # klasyfikacja
+    p_felony  = mean(law_cat_cd == "F"),
+    p_misdemeanor = mean(law_cat_cd =="M"),
+    p_violation = mean(law_cat_cd=="V"),
+    
+    # sezon
+    p_winter  = mean(season == "Winter"),
+    p_spring = mean(season=="Spring"),
+    p_summer = mean(season=="Summer")
+  )
+profiles <- na.omit(profiles)
+any(is.na(profiles$ofns_desc))
+profiles <- profiles[!is.na(profiles$ofns_desc), ]
+
+any(duplicated(profiles$ofns_desc))
+
+```
+
+```{r echo=FALSE}
+profiles <- as.data.frame(profiles)
+rownames(profiles) <- profiles$ofns_desc
+X <- profiles %>% 
+  select(-ofns_desc)
+X_scaled <- scale(X)
+```
+
+```{r echo=FALSE}
+#wss <- sapply(1:10, function(k){
+ # kmeans(X_scaled, centers = k, nstart = 20)$tot.withinss
+#})
+
+#plot(1:10, wss, type = "b")
+```
+
+Rozważając hipotezę zastosowano poprawioną metodę klastryzacji hierarchicznej Warda.
+
+```{r echo=TRUE}
+d <- dist(X_scaled)
+hc <- hclust(d, method = "ward.D2")
+plot(hc, cex = 0.6)
+```
+
+Zdecydowałem się podzielić przestępstwa na 5 grup.
+
+```{r echo=TRUE}
+clusters <- cutree(hc, k =5)
+```
+
+```{r echo=TRUE}
+result <- data.frame(
+  crime = rownames(X_scaled),
+  cluster = clusters
+)
+
+```
+
+```{r echo=TRUE}
+split(result$crime, result$cluster)
+```
+
+1.  Grupa
+
+    BURGLAR'S TOOLS → narzędzia włamywacza\
+    BURGLARY → włamanie\
+    CRIMINAL TRESPASS → bezprawne wtargnięcie\
+    DANGEROUS DRUGS → niebezpieczne narkotyki / substancje odurzające\
+    FORGERY → fałszerstwo\
+    FRAUDS → oszustwa\
+    GRAND LARCENY → kradzież o znacznej wartości\
+    OFFENSES INVOLVING FRAUD → przestępstwa związane z oszustwem\
+    OTHER OFFENSES RELATED TO THEFT → inne przestępstwa związane z kradzieżą\
+    PETIT LARCENY → drobna kradzież
+
+    Interpretacja:\
+    Bezpośrednia lub pośrednia korzyść majątkowa, brak przemocy fizycznej
+
+2.  Grupa
+
+    CRIMINAL MISCHIEF & RELATED OFF → zniszczenie mienia i czyny pokrewne\
+    FELONY ASSAULT → ciężkie pobicie / napaść\
+    INTOXICATED & IMPAIRED DRIVING → prowadzenie pod wpływem alkoholu lub narkotyków\
+    OFF. AGNST PUB ORD SENSBLTY & → przestępstwa przeciwko porządkowi publicznemu i obyczajności\
+    OFFENSES AGAINST PUBLIC ADMINI → przestępstwa przeciwko administracji publicznej\
+    OTHER TRAFFIC INFRACTION → inne wykroczenia drogowe\
+    SEX CRIMES → przestępstwa seksualne\
+    UNAUTHORIZED USE OF A VEHICLE → nieuprawnione użycie pojazdu\
+    VEHICLE AND TRAFFIC LAWS → naruszenia prawa drogowego
+
+    Interpretacja:\
+    Naruszenia porządku publicznego, norm społecznych i przepisów administracyjnych
+
+3.  Grupa
+
+    DANGEROUS WEAPONS → niebezpieczna broń\
+    GRAND LARCENY OF MOTOR VEHICLE → kradzież pojazdu\
+    MURDER & NON-NEGL. MANSLAUGHTER → zabójstwo i nieumyślne spowodowanie śmierci\
+    POSSESSION OF STOLEN PROPERTY → posiadanie skradzionego mienia\
+    RAPE → gwałt\
+    ROBBERY → rozbój
+
+    Interpretacja:\
+    Wysoka szkodliwość społeczna, przemoc fizyczna lub zagrożenie życia i zdrowia
+
+4.  Grupa
+
+    GAMBLING → hazard
+
+    Interpretacja:\
+    Nielegalna działalność związana z grami losowymi
+
+5.  Grupa
+
+    PROSTITUTION & RELATED OFFENSES → prostytucja i przestępstwa powiązane
+
+    Interpretacja: Naruszenie norm obyczajowych i regulacji prawnych dotyczących prostytucji
+
+```{r echo=TRUE}
+cluster_profiles <- aggregate(
+  X_scaled,
+  by = list(cluster = clusters),
+  FUN = mean
+)
+
+
+```
+
+```{r fig.width = 35, fig.height = 10}
+cluster_profiles
+```
+
+```{r echo=TRUE}
+klastry<- round(cluster_profiles, 3)
+rasy <- c("p_white", "p_black","p_hisp","p_asian","p_nonwhite")
+płcie <- c("p_male","p_female")
+wiek <- c("p_young","p_average","p_old","p_v_old")
+dzielnice <- c("p_bronx","p_manh","p_brook","p_q","p_si")
+waga <- c("p_felony","p_misdemeanor","p_violation")
+sezon <- c("p_winter","p_spring","p_summer")
+
+scale_block <- function(df, cols){
+  df[, cols] <- scale(df[, cols])
+  df
+}
+klastry_scaled <- klastry
+klastry_scaled <- scale_block(klastry_scaled, rasy)
+klastry_scaled <- scale_block(klastry_scaled, płcie)
+klastry_scaled <- scale_block(klastry_scaled, wiek)
+klastry_scaled <- scale_block(klastry_scaled, dzielnice)
+klastry_scaled <- scale_block(klastry_scaled, waga)
+klastry_scaled <- scale_block(klastry_scaled, sezon)
+```
+
+W celu zapewnienia porównywalności zmiennych i uniknięcia dominacji bloków o większej liczbie cech, zastosowano skalowanie **w obrębie poszczególnych bloków zmiennych**. Zmienna `klastry` została poddana transformacji za pomocą funkcji `scale_block`, która normalizuje wartości każdej zmiennej w danym bloku poprzez odjęcie średniej i podzielenie przez odchylenie standardowe.
+
+Skalowanie przeprowadzono oddzielnie dla następujących bloków:
+
+**rasy**
+
+**płci**
+
+**wieku**
+
+**dzielnic**
+
+**wagi przestępstw**
+
+**sezonu ( zima, wiosna, lato brak danych dla jesieni)**
+
+Dzięki takiemu podejściu każda zmienna w obrębie bloku ma średnią równą 0 i odchylenie standardowe równe 1. Ponadto, skalowanie blokowe zapewnia, że **żaden blok zmiennych nie ma nieproporcjonalnie większego wpływu na odległość między obserwacjami**, co jest szczególnie istotne w analizie klasteryzacji opartej na metryce euklidesowej.
+
+Poniższa Tabela przedstawia **zestawienie wartości standaryzowanych (z-score)** dla zmiennych użytych w analizie klasteryzacji. Każda komórka zawiera wartość znormalizowaną dla konkretnej obserwacji i zmiennej.
+
+Kolorowanie jest stosowane globalnie względem **całej tabeli**, tzn. skala kolorów jest ustalona na podstawie **największej wartości bezwzględnej** spośród wszystkich komórek. Dzięki temu wartości są porównywalne między kolumnami.
+
+**Kolor czerwony** oznacza wartości **silnie ujemne** (poniżej średniej).
+
+**Kolor żółty** oznacza wartości **bliskie średniej**.
+
+**Kolor zielony** oznacza wartości **silnie dodatnie** (powyżej średniej).
+
+Co pomaga w poniższym profilowaniu.
+
+```{r echo=TRUE}
+library(knitr)
+library(kableExtra)
+library(scales)
+klastry_scaled <- klastry_scaled[,-c(1,20)]
+num_cols <- klastry_scaled
+max_abs <- max(abs(as.matrix(num_cols)), na.rm = TRUE)
+pal_global <- scales::col_numeric(
+  palette = c("red", "yellow", "green"),
+  domain = c(-max_abs, max_abs)
+)
+kbl <- kable(klastry_scaled, digits = 3, format = "html") %>%
+  kable_styling(full_width = FALSE)
+
+for(i in 1:ncol(klastry_scaled)){
+  bg <- pal_global(klastry_scaled[[i]])
+  kbl <- kbl %>% column_spec(i, background = bg)
+}
+
+kbl
+
+```
+
+### Wnioski
+
+**Rodzaje przestępstw przeciwko mieniu i oszustwom bez użycia przemocy** są powiązane przede wszystkim z mężczyznami rasy białej w wieku 25–44 lata, z nieco mniejszym udziałem osób w wieku 44–65 lat. Sprawcy najczęściej pochodzą z Manhattanu. Przestępstwa te charakteryzują się stosunkowo wysoką wagą i występują głównie w sezonie zimowym, natomiast rzadko w okresie letnim.
+
+**Przestępstwa porządkowe, administracyjne oraz naruszenia przepisów ruchu drogowego** dotyczą głównie mężczyzn rasy białej oraz czarnoskórych, przy czym udział kobiet jest mniejszy, lecz bez wyraźnego kontrastu. Dominują osoby w wieku 25–44 lat, pochodzące przede wszystkim ze Staten Island, a w mniejszym stopniu z Bronx. Zdarzenia te mają średni poziom szkodliwości i występują głównie zimą, rzadziej latem, a prawie w ogóle nie występują wiosną.
+
+**Przestępstwa z użyciem przemocy lub nielegalnym posiadaniem broni** są silnie skorelowane z mężczyznami rasy czarnej, z niewielkim udziałem osób białych oraz praktycznie bez udziału kobiet. Najczęściej sprawcy są w przedziale 18–24 lat lub nieletni. Kategoria ta obejmuje przestępstwa o najwyższej wadze, z dominującym miejscem popełnienia w dzielnicy Bronx. Częstotliwość zdarzeń jest najwyższa w sezonie zimowym oraz latem, przy zbliżonych wartościach dla obu okresów.
+
+**Przestępstwa hazardowe** wykazują silną zależność od pochodzenia azjatyckiego, przy jednoczesnym wyraźnym kontraście w stosunku do osób białych oraz pochodzenia latynoskiego. Udział kobiet jest większy niż mężczyzn, choć różnica nie jest istotna. Przeważają osoby w wieku 44–65 lat, a w jeszcze większym stopniu 65+. Przestępstwa te mają średni poziom ciężkości i są popełniane głównie na Brooklynie, z wyraźną przewagą sezonu wiosennego.
+
+**Przestępstwa związane z prostytucją i przestępstwa powiązane** dotyczą przede wszystkim osób pochodzenia latynoskiego oraz osób mieszanych rasowo (w tym m.in. mieszanki latynoskiej, czarnoskórej i białej, a także osób pochodzenia hinduskiego). Zdecydowanie rzadziej dotyczą osób azjatyckich, a praktycznie nie obejmują osób białych i czarnoskórych. Sprawcy są w większości kobietami w wieku 25–44 lat, rzadziej w wieku 44–65 lat. Przestępstwa te mają średni poziom ciężkości i występują praktycznie wyłącznie w dzielnicy Queens, przede wszystkim w sezonie letnim i wiosennym.
+
+# Model
+
+Zbudowano model Random Forest w celu predykcji grupy przestępstw na podstawie cech demograficznych sprawców oraz kontekstu aresztowania. Zbiór danych podzielono na część treningową (90%) i testową (10%). Jako miarę jakości przyjęto trafność klasyfikacji oraz macierz pomyłek. Dodatkowo przeanalizowano ważność zmiennych.
+
+Random Forest aproksymuje funkcję maksymalizującą prawdopodobieństwo przynależności obserwacji do klastra poprzez głosowanie wielu drzew decyzyjnych budowanych na losowych próbkach danych i cech.
+
+```{r echo=TRUE}
+map_clusters <- data.frame(
+  ofns_desc = result$crime,
+  cluster = as.integer(result$cluster)
+)
+
+data_ml <- zbiór %>%
+  left_join(map_clusters, by="ofns_desc")
+data_ml <- data_ml %>%
+  select(cluster,
+         age_group,
+         perp_sex,
+         perp_race,
+         Distinct,
+         season,
+         Arrest_manner)
+data_ml <- data_ml %>%
+  mutate(across(everything(), as.factor))
+
+set.seed(123)
+
+id_train <- sample(
+  1:nrow(data_ml),
+  size = 0.9 * nrow(data_ml)
+)
+
+train <- data_ml[id_train, ]
+test  <- data_ml[-id_train, ]
+
+
+library(randomForest)
+
+rf_model <- randomForest(
+  cluster ~ .,
+  data = train,
+  ntree = 500,
+  importance = TRUE
+)
+summary(rf_model)
+pred <- predict(rf_model, newdata = test)
+
+```
+
+**Ocena jakości**
+
+```{r echo=TRUE}
+confusionMatrix <- table(pred, test$cluster)
+confusionMatrix
+sum(diag(confusionMatrix))/sum(confusionMatrix)
+```
+
+Dokładność wynosi 56%
+
+Przykładowy nowy przypadek (testowy) należący do czwartej grupy dosłownie ze zbioru treningowego.
+
+```{r echo=TRUE}
+
+new <- data.frame(
+  age_group = "25-44",
+  perp_sex  = "M",
+  perp_race = "Asian",
+  Distinct   = "Brooklyn",   
+  season    = "Summer",
+  Arrest_manner = "Patrol"
+)
+for(col in intersect(names(train), names(new))) {
+  if(is.ordered(train[[col]])) {
+    new[[col]] <- factor(new[[col]],
+                         levels = levels(train[[col]]),
+                         ordered = TRUE)
+  } else if(is.factor(train[[col]])) {
+    new[[col]] <- factor(new[[col]],
+                         levels = levels(train[[col]]))
+  }
+}
+
+pred_class <- predict(rf_model, newdata = new)
+pred_probs0 <- predict(rf_model, newdata = new, type = "prob")
+pred_train0 <- predict(rf_model, train)
+
+pred_probs0
+```
+
+Model nie potrafi przewidzieć przypadku należącego do 4 grupy nawet jeśli podamy mu przypadek dosłownie ze zbioru treningowego. Model nie przewidział 4 grupy nigdy ( co wiemy z macierzy pomyłek) za to bardzo trafnie przewiduje pierwszą, drugą i trzecią (z mojej obsewacji wynika że trzecią całkiem przyzwoicie biorąc pod uwagę to, że w zbiorze treningowym grupy 1 i 2 występuję nieproporcjonalnie za często) co widać poniżej.
+
+```{r echo=TRUE}
+table(train$cluster)
+```
+
+Zastosuję zwiększone wagi dla grup które występują rzadziej.
+
+```{r echo=TRUE}
+freq <- table(train$cluster)
+w <-c(2.1,2.45,2.35,2.1,2.02)
+
+```
+
+**Nowy model**
+
+```{r echo=TRUE}
+rf_w <- randomForest(
+  cluster ~ .,
+  data = train,
+  ntree = 500,
+  classwt = w
+)
+
+pred_class <- predict(rf_w, newdata = new)
+pred_probs <- predict(rf_w, newdata = new, type = "prob")
+pred_train <- predict(rf_w, newdata=train)
+table(pred_train, train$cluster)
+pred_class
+```
+
+Model przewidział przypadek poprawnie ale sprawdzę jego jakość.
+
+```{r echo=TRUE}
+pred_test <- predict(rf_w, newdata = test)
+tab <- table(pred_test, test$cluster)
+recall <- diag(prop.table(tab, 2))
+recall
+```
+
+Czułość - stosunek prawdziwie pozytywnych przypadków do sumy prawdziwie pozytywnych i fałszywie negatywnych, czyli jak często model rzeczywiście przewidział grupę jest moim zdaniem zadowalająca.
+
+Test precyzji - jaki jest stosunek poprawnych przewidywań danej grupy w stosunku ogólnie do przewidywań tej grupy.
+
+```{r echo =TRUE}
+precision <- diag(prop.table(tab, 1))
+precision
+```
+
+Model zbyt często przewiduje grupę czwartą i piątą jednak tylko 6% i 4% trafnie.
+
+Średnia czułość i precyzja:
+
+```{r echo=TRUE}
+mean(recall)
+mean(precision)
+```
+
+Ogólna dokładność modelu
+
+```{r}
+sum(diag(tab))/sum(tab)
+
+```
+
+Dokładność nowego modelu jest niższa niż poprzedniego ale przynajmniej był w stanie przewidzieć grupy 4 i 5.

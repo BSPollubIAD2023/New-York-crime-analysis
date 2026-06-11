@@ -1,0 +1,51 @@
+"","Distinct","perp_race","typ","wartosc"
+"1","Bronx","Asian","count",54326
+"2","Bronx","Asian","n",479
+"3","Bronx","BLACK","count",418455
+"4","Bronx","BLACK","n",14905
+"5","Bronx","Hispanic","count",823695
+"6","Bronx","Hispanic","n",14881
+"7","Bronx","Nonwhite","count",1336118
+"8","Bronx","Nonwhite","n",74
+"9","Bronx","WHITE","count",132144
+"10","Bronx","WHITE","n",1036
+"11","Brooklyn","Asian","count",612635
+"12","Brooklyn","Asian","n",2226
+"13","Brooklyn","BLACK","count",402041
+"14","Brooklyn","BLACK","n",22337
+"15","Brooklyn","Hispanic","count",667676
+"16","Brooklyn","Hispanic","n",9969
+"17","Brooklyn","Nonwhite","count",1804400
+"18","Brooklyn","Nonwhite","n",93
+"19","Brooklyn","WHITE","count",588704
+"20","Brooklyn","WHITE","n",5177
+"21","Manhattan","Asian","count",317346
+"22","Manhattan","Asian","n",1259
+"23","Manhattan","BLACK","count",775735
+"24","Manhattan","BLACK","n",16167
+"25","Manhattan","Hispanic","count",509924
+"26","Manhattan","Hispanic","n",11414
+"27","Manhattan","Nonwhite","count",1716924
+"28","Manhattan","Nonwhite","n",108
+"29","Manhattan","WHITE","count",995436
+"30","Manhattan","WHITE","n",3798
+"31","Queens","Asian","count",196957
+"32","Queens","Asian","n",3975
+"33","Queens","BLACK","count",201964
+"34","Queens","BLACK","n",10640
+"35","Queens","Hispanic","count",427297
+"36","Queens","Hispanic","n",11105
+"37","Queens","Nonwhite","count",889645
+"38","Queens","Nonwhite","n",161
+"39","Queens","WHITE","count",779482
+"40","Queens","WHITE","n",2505
+"41","Staten Island","Asian","count",51292
+"42","Staten Island","Asian","n",261
+"43","Staten Island","BLACK","count",44881
+"44","Staten Island","BLACK","n",2527
+"45","Staten Island","Hispanic","count",90748
+"46","Staten Island","Hispanic","n",1512
+"47","Staten Island","Nonwhite","count",199250
+"48","Staten Island","Nonwhite","n",37
+"49","Staten Island","WHITE","count",293944
+"50","Staten Island","WHITE","n",1708
